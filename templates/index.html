@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XX视频监控运营管理平台</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+    <div id="app">
+        <div class="login-container" v-if="!isLoggedIn">
+            <div class="login-box">
+                <div class="login-header">
+                    <h1>XX视频监控</h1>
+                    <p>运营管理平台</p>
+                </div>
+                <form @submit.prevent="handleLogin" class="login-form">
+                    <div class="form-group">
+                        <label>用户名</label>
+                        <input type="text" v-model="loginForm.username" placeholder="请输入用户名" required>
+                    </div>
+                    <div class="form-group">
+                        <label>密码</label>
+                        <input type="password" v-model="loginForm.password" placeholder="请输入密码" required>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary" :disabled="loading">
+                            <span v-if="loading">登录中...</span>
+                            <span v-else>登 录</span>
+                        </button>
+                    </div>
+                    <div class="login-tip">
+                        <p>默认账号: admin / admin123</p>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="main-container" v-else>
+            <aside class="sidebar">
+                <div class="logo">
+                    <h2>监控运营平台</h2>
+                </div>
+                <nav class="nav-menu">
+                    <a href="#" @click="currentView='dashboard'" :class="{active: currentView==='dashboard'}">
+                        <span class="icon">📊</span>
+                        <span>仪表盘</span>
+                    </a>
+                    <a href="#" @click="currentView='workorders'" :class="{active: currentView==='workorders'}">
+                        <span class="icon">📋</span>
+                        <span>工单管理</span>
+                    </a>
+                    <a href="#" @click="currentView='projects'" :class="{active: currentView==='projects'}">
+                        <span class="icon">📁</span>
+                        <span>项目管理</span>
+                    </a>
+                    <a href="#" @click="currentView='points'" :class="{active: currentView==='points'}">
+                        <span class="icon">📍</span>
+                        <span>点位管理</span>
+                    </a>
+                    <a href="#" @click="currentView='materials'" :class="{active: currentView==='materials'}">
+                        <span class="icon">📦</span>
+                        <span>物资管理</span>
+                    </a>
+                    <a href="#" @click="currentView='reports'" :class="{active: currentView==='reports'}">
+                        <span class="icon">📈</span>
+                        <span>统计报表</span>
+                    </a>
+                </nav>
+                <div class="user-info">
+                    <div class="user-avatar">[[ user.nickname ? user.nickname[0] : 'U' ]]</div>
+                    <div class="user-details">
+                        <span class="user-name">[[ user.nickname ]]</span>
+                        <span class="user-role">[[ user.role_name ]]</span>
+                    </div>
+                    <button @click="handleLogout" class="btn-logout">退出</button>
+                </div>
+            </aside>
+
+            <main class="main-content">
+                <header class="top-bar">
+                    <h1>[[ viewTitles[currentView] ]]</h1>
+                    <div class="top-actions">
+                        <span class="current-time">[[ currentTime ]]</span>
+                    </div>
+                </header>
+
+                <div class="content-area">
+                    <div v-if="currentView==='dashboard'" class="dashboard">
+                        <div class="kpi-cards">
+                            <div class="kpi-card">
+                                <div class="kpi-icon">📋</div>
+                                <div class="kpi-info">
+                                    <span class="kpi-value">[[ dashboardData.today_workorders ]]</span>
+                                    <span class="kpi-label">今日工单</span>
+                                </div>
+                            </div>
+                            <div class="kpi-card">
+                                <div class="kpi-icon">⏳</div>
+                                <div class="kpi-info">
+                                    <span class="kpi-value">[[ dashboardData.pending_workorders ]]</span>
+                                    <span class="kpi-label">待处理工单</span>
+                                </div>
+                            </div>
+                            <div class="kpi-card">
+                                <div class="kpi-icon">📁</div>
+                                <div class="kpi-info">
+                                    <span class="kpi-value">[[ dashboardData.active_projects ]]</span>
+                                    <span class="kpi-label">活跃项目</span>
+                                </div>
+                            </div>
+                            <div class="kpi-card warning">
+                                <div class="kpi-icon">⚠️</div>
+                                <div class="kpi-info">
+                                    <span class="kpi-value">[[ dashboardData.low_stock_materials ]]</span>
+                                    <span class="kpi-label">库存预警</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="charts-row">
+                            <div class="chart-card">
+                                <h3>工单状态分布</h3>
+                                <div class="chart-placeholder">
+                                    <div v-for="item in dashboardData.by_status" :key="item.status" class="status-bar">
+                                        <span class="status-label">[[ statusNames[item.status] ]]</span>
+                                        <div class="bar-container">
+                                            <div class="bar" :class="item.status" :style="{width: (item.count / dashboardData.total * 100) + '%'}"></div>
+                                        </div>
+                                        <span class="status-count">[[ item.count ]]</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="chart-card">
+                                <h3>工单趋势（近7天）</h3>
+                                <div class="trend-chart">
+                                    <div v-for="item in dashboardData.workorder_trend" :key="item.date" class="trend-bar-wrapper">
+                                        <div class="trend-bar" :style="{height: (item.count / maxTrendCount * 100) + '%'}"></div>
+                                        <span class="trend-date">[[ formatDate(item.date) ]]</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="recent-section">
+                            <h3>最新工单</h3>
+                            <div class="recent-list">
+                                <div v-for="wo in dashboardData.recent_workorders" :key="wo.id" class="recent-item" @click="viewWorkorder(wo.id)">
+                                    <span class="item-title">[[ wo.title ]]</span>
+                                    <span class="item-project">[[ wo.project_name ]]</span>
+                                    <span class="item-status" :class="wo.status">[[ statusNames[wo.status] ]]</span>
+                                    <span class="item-date">[[ formatDateTime(wo.created_at) ]]</span>
+                                </div>
+                                <div v-if="dashboardData.recent_workorders?.length === 0" class="empty-state">
+                                    暂无工单数据
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="currentView==='workorders'" class="workorders-view">
+                        <div class="filter-bar">
+                            <input type="text" v-model="workorderFilters.keyword" placeholder="搜索工单..." @keyup.enter="loadWorkorders">
+                            <select v-model="workorderFilters.status">
+                                <option value="">全部状态</option>
+                                <option value="pending">待处理</option>
+                                <option value="processing">处理中</option>
+                                <option value="completed">已完成</option>
+                                <option value="cancelled">已取消</option>
+                            </select>
+                            <select v-model="workorderFilters.type">
+                                <option value="">全部类型</option>
+                                <option value="install">安装</option>
+                                <option value="maintenance">维护</option>
+                                <option value="inspection">巡检</option>
+                                <option value="fault">故障</option>
+                            </select>
+                            <button @click="loadWorkorders" class="btn-search">搜索</button>
+                            <button @click="showWorkorderModal('create')" class="btn-primary">新建工单</button>
+                        </div>
+
+                        <div class="data-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>工单标题</th>
+                                        <th>类型</th>
+                                        <th>状态</th>
+                                        <th>优先级</th>
+                                        <th>项目</th>
+                                        <th>指派给</th>
+                                        <th>创建时间</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="wo in workorders" :key="wo.id">
+                                        <td>[[ wo.title ]]</td>
+                                        <td><span class="tag">[[ typeNames[wo.type] ]]</span></td>
+                                        <td><span class="status-tag" :class="wo.status">[[ statusNames[wo.status] ]]</span></td>
+                                        <td><span class="priority-tag" :class="wo.priority">[[ priorityNames[wo.priority] ]]</span></td>
+                                        <td>[[ wo.project_name ]]</td>
+                                        <td>[[ wo.assignee_name || '-' ]]</td>
+                                        <td>[[ formatDateTime(wo.created_at) ]]</td>
+                                        <td>
+                                            <button @click="viewWorkorder(wo.id)" class="btn-link">查看</button>
+                                            <button v-if="wo.status!=='completed'" @click="editWorkorder(wo)" class="btn-link">编辑</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div v-if="workorders.length === 0" class="empty-table">暂无工单数据</div>
+                        </div>
+
+                        <div class="pagination">
+                            <button @click="changeWorkorderPage(workorderPage-1)" :disabled="workorderPage<=1">上一页</button>
+                            <span>第 [[ workorderPage ]] / [[ workorderTotalPages ]] 页</span>
+                            <button @click="changeWorkorderPage(workorderPage+1)" :disabled="workorderPage>=workorderTotalPages">下一页</button>
+                        </div>
+                    </div>
+
+                    <div v-if="currentView==='projects'" class="projects-view">
+                        <div class="filter-bar">
+                            <input type="text" v-model="projectFilters.keyword" placeholder="搜索项目..." @keyup.enter="loadProjects">
+                            <select v-model="projectFilters.status">
+                                <option value="">全部状态</option>
+                                <option value="active">进行中</option>
+                                <option value="completed">已完成</option>
+                                <option value="suspended">已暂停</option>
+                            </select>
+                            <button @click="loadProjects" class="btn-search">搜索</button>
+                            <button @click="showProjectModal('create')" class="btn-primary">新建项目</button>
+                        </div>
+
+                        <div class="projects-grid">
+                            <div v-for="project in projects" :key="project.id" class="project-card" @click="viewProject(project.id)">
+                                <div class="project-header">
+                                    <h3>[[ project.name ]]</h3>
+                                    <span class="project-code">[[ project.code ]]</span>
+                                </div>
+                                <div class="project-info">
+                                    <p><strong>客户：</strong>[[ project.customer || '-' ]]</p>
+                                    <p><strong>地址：</strong>[[ project.address || '-' ]]</p>
+                                </div>
+                                <div class="project-stats">
+                                    <div class="stat">
+                                        <span class="stat-value">[[ project.points_count ]]</span>
+                                        <span class="stat-label">点位</span>
+                                    </div>
+                                    <div class="stat">
+                                        <span class="stat-value">[[ project.workorders_count ]]</span>
+                                        <span class="stat-label">工单</span>
+                                    </div>
+                                </div>
+                                <div class="project-footer">
+                                    <span class="project-status" :class="project.status">[[ projectStatusNames[project.status] ]]</span>
+                                    <span class="project-date">[[ formatDate(project.start_date) ]]</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-if="projects.length === 0" class="empty-state">暂无项目数据</div>
+
+                        <div class="pagination">
+                            <button @click="changeProjectPage(projectPage-1)" :disabled="projectPage<=1">上一页</button>
+                            <span>第 [[ projectPage ]] / [[ projectTotalPages ]] 页</span>
+                            <button @click="changeProjectPage(projectPage+1)" :disabled="projectPage>=projectTotalPages">下一页</button>
+                        </div>
+                    </div>
+
+                    <div v-if="currentView==='points'" class="points-view">
+                        <div class="filter-bar">
+                            <input type="text" v-model="pointFilters.keyword" placeholder="搜索点位..." @keyup.enter="loadPoints">
+                            <select v-model="pointFilters.project_id">
+                                <option value="">全部项目</option>
+                                <option v-for="p in projectList" :key="p.id" :value="p.id">[[ p.name ]]</option>
+                            </select>
+                            <button @click="loadPoints" class="btn-search">搜索</button>
+                            <button @click="showPointModal('create')" class="btn-primary">新建点位</button>
+                        </div>
+
+                        <div class="data-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>点位名称</th>
+                                        <th>编码</th>
+                                        <th>设备型号</th>
+                                        <th>IP地址</th>
+                                        <th>所属项目</th>
+                                        <th>状态</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="pt in points" :key="pt.id">
+                                        <td>[[ pt.name ]]</td>
+                                        <td>[[ pt.code || '-' ]]</td>
+                                        <td>[[ pt.device_model || '-' ]]</td>
+                                        <td>[[ pt.ip_address || '-' ]]</td>
+                                        <td>[[ pt.project_name ]]</td>
+                                        <td><span class="status-tag" :class="pt.status">[[ pt.status === 'active' ? '正常' : '异常' ]]</span></td>
+                                        <td>
+                                            <button @click="viewPoint(pt)" class="btn-link">查看</button>
+                                            <button @click="editPoint(pt)" class="btn-link">编辑</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div v-if="points.length === 0" class="empty-table">暂无点位数据</div>
+                        </div>
+
+                        <div class="pagination">
+                            <button @click="changePointPage(pointPage-1)" :disabled="pointPage<=1">上一页</button>
+                            <span>第 [[ pointPage ]] / [[ pointTotalPages ]] 页</span>
+                            <button @click="changePointPage(pointPage+1)" :disabled="pointPage>=pointTotalPages">下一页</button>
+                        </div>
+                    </div>
+
+                    <div v-if="currentView==='materials'" class="materials-view">
+                        <div class="tabs">
+                            <button :class="{active: materialTab==='list'}" @click="materialTab='list'">物资台账</button>
+                            <button :class="{active: materialTab==='inbound'}" @click="materialTab='inbound'">入库记录</button>
+                            <button :class="{active: materialTab==='outbound'}" @click="materialTab='outbound'">出库记录</button>
+                            <button :class="{active: materialTab==='inventory'}" @click="materialTab='inventory'">库存查询</button>
+                        </div>
+
+                        <div v-if="materialTab==='list'">
+                            <div class="filter-bar">
+                                <input type="text" v-model="materialFilters.keyword" placeholder="搜索物资..." @keyup.enter="loadMaterials">
+                                <select v-model="materialFilters.category">
+                                    <option value="">全部分类</option>
+                                    <option v-for="cat in categories" :key="cat" :value="cat">[[ cat ]]</option>
+                                </select>
+                                <button @click="loadMaterials" class="btn-search">搜索</button>
+                                <button @click="showMaterialModal('create')" class="btn-primary">新建物资</button>
+                            </div>
+                            <div class="data-table">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>物资名称</th>
+                                            <th>编码</th>
+                                            <th>分类</th>
+                                            <th>规格</th>
+                                            <th>单位</th>
+                                            <th>单价</th>
+                                            <th>库存</th>
+                                            <th>状态</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="m in materials" :key="m.id" :class="{warning: m.is_low_stock}">
+                                            <td>[[ m.name ]]</td>
+                                            <td>[[ m.code ]]</td>
+                                            <td>[[ m.category || '-' ]]</td>
+                                            <td>[[ m.spec || '-' ]]</td>
+                                            <td>[[ m.unit ]]</td>
+                                            <td>¥[[ m.price.toFixed(2) ]]</td>
+                                            <td :class="{low: m.is_low_stock}">[[ m.current_stock ]]</td>
+                                            <td><span class="status-tag" :class="m.status">[[ m.status === 'active' ? '正常' : '停用' ]]</span></td>
+                                            <td>
+                                                <button @click="inboundMaterial(m)" class="btn-link">入库</button>
+                                                <button @click="outboundMaterial(m)" class="btn-link">出库</button>
+                                                <button @click="editMaterial(m)" class="btn-link">编辑</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <div v-if="materials.length === 0" class="empty-table">暂无物资数据</div>
+                            </div>
+                        </div>
+
+                        <div v-if="materialTab==='inbound'">
+                            <div class="data-table">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>物资名称</th>
+                                            <th>数量</th>
+                                            <th>批次号</th>
+                                            <th>供应商</th>
+                                            <th>操作人</th>
+                                            <th>入库时间</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="ib in inbounds" :key="ib.id">
+                                            <td>[[ ib.material_name ]]</td>
+                                            <td>+[[ ib.quantity ]]</td>
+                                            <td>[[ ib.batch_no || '-' ]]</td>
+                                            <td>[[ ib.supplier || '-' ]]</td>
+                                            <td>[[ ib.operator_name ]]</td>
+                                            <td>[[ formatDateTime(ib.inbound_at) ]]</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <div v-if="inbounds.length === 0" class="empty-table">暂无入库记录</div>
+                            </div>
+                        </div>
+
+                        <div v-if="materialTab==='outbound'">
+                            <div class="data-table">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>物资名称</th>
+                                            <th>数量</th>
+                                            <th>关联工单</th>
+                                            <th>用途</th>
+                                            <th>操作人</th>
+                                            <th>出库时间</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="ob in outbounds" :key="ob.id">
+                                            <td>[[ ob.material_name ]]</td>
+                                            <td>-[[ ob.quantity ]]</td>
+                                            <td>[[ ob.workorder_title || '-' ]]</td>
+                                            <td>[[ ob.reason || '-' ]]</td>
+                                            <td>[[ ob.operator_name ]]</td>
+                                            <td>[[ formatDateTime(ob.outbound_at) ]]</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <div v-if="outbounds.length === 0" class="empty-table">暂无出库记录</div>
+                            </div>
+                        </div>
+
+                        <div v-if="materialTab==='inventory'">
+                            <div class="inventory-summary">
+                                <div class="summary-card">
+                                    <span class="summary-value">[[ inventoryStats.total_count ]]</span>
+                                    <span class="summary-label">物资种类</span>
+                                </div>
+                                <div class="summary-card">
+                                    <span class="summary-value">¥[[ inventoryStats.total_value?.toFixed(2) || '0.00' ]]</span>
+                                    <span class="summary-label">库存总值</span>
+                                </div>
+                            </div>
+                            <div class="data-table">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>物资名称</th>
+                                            <th>当前库存</th>
+                                            <th>预警阈值</th>
+                                            <th>单价</th>
+                                            <th>库存价值</th>
+                                            <th>状态</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="m in inventoryItems" :key="m.id" :class="{warning: m.is_low_stock}">
+                                            <td>[[ m.name ]]</td>
+                                            <td :class="{low: m.is_low_stock}">[[ m.current_stock ]] [[ m.unit ]]</td>
+                                            <td>[[ m.low_stock_threshold ]]</td>
+                                            <td>¥[[ m.price.toFixed(2) ]]</td>
+                                            <td>¥[[ (m.price * m.current_stock).toFixed(2) ]]</td>
+                                            <td>
+                                                <span v-if="m.is_low_stock" class="warning-badge">库存预警</span>
+                                                <span v-else class="status-tag active">正常</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="currentView==='reports'" class="reports-view">
+                        <div class="filter-bar">
+                            <input type="date" v-model="reportFilters.start_date">
+                            <input type="date" v-model="reportFilters.end_date">
+                            <select v-model="reportFilters.project_id">
+                                <option value="">全部项目</option>
+                                <option v-for="p in projectList" :key="p.id" :value="p.id">[[ p.name ]]</option>
+                            </select>
+                            <button @click="loadReportData" class="btn-search">查询</button>
+                            <button @click="exportReport" class="btn-export">导出Excel</button>
+                        </div>
+
+                        <div class="report-cards">
+                            <div class="report-card">
+                                <h3>工单统计</h3>
+                                <div class="stats-grid">
+                                    <div class="stat-item">
+                                        <span class="stat-value">[[ reportStats.total ]]</span>
+                                        <span class="stat-label">总工单</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-value">[[ reportStats.pending ]]</span>
+                                        <span class="stat-label">待处理</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-value">[[ reportStats.processing ]]</span>
+                                        <span class="stat-label">处理中</span>
+                                    </div>
+                                    <div class="stat-item success">
+                                        <span class="stat-value">[[ reportStats.completed ]]</span>
+                                        <span class="stat-label">已完成</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-value">[[ reportStats.completion_rate ]]%</span>
+                                        <span class="stat-label">完成率</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="report-card">
+                                <h3>项目统计</h3>
+                                <div class="stats-grid">
+                                    <div class="stat-item">
+                                        <span class="stat-value">[[ projectStats.total_projects ]]</span>
+                                        <span class="stat-label">总项目</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-value">[[ projectStats.active_projects ]]</span>
+                                        <span class="stat-label">进行中</span>
+                                    </div>
+                                </div>
+                                <div class="project-list">
+                                    <div v-for="p in projectStats.projects?.slice(0, 5)" :key="p.project_id" class="project-item">
+                                        <span class="project-name">[[ p.project_name ]]</span>
+                                        <span class="project-rate">[[ p.completion_rate ]]%</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="report-card">
+                                <h3>物资统计</h3>
+                                <div class="stats-grid">
+                                    <div class="stat-item">
+                                        <span class="stat-value">[[ materialStats.total_materials ]]</span>
+                                        <span class="stat-label">物资种类</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-value">¥[[ materialStats.total_stock_value?.toFixed(2) || '0' ]]</span>
+                                        <span class="stat-label">库存总值</span>
+                                    </div>
+                                    <div class="stat-item warning">
+                                        <span class="stat-value">[[ materialStats.low_stock_count ]]</span>
+                                        <span class="stat-label">库存预警</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="report-card full-width">
+                            <h3>工程师绩效</h3>
+                            <div class="data-table">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>工程师</th>
+                                            <th>总工单</th>
+                                            <th>已完成</th>
+                                            <th>完成率</th>
+                                            <th>平均处理时长(小时)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="eng in engineerStats" :key="eng.user_id">
+                                            <td>[[ eng.user_name ]]</td>
+                                            <td>[[ eng.total_workorders ]]</td>
+                                            <td>[[ eng.completed_workorders ]]</td>
+                                            <td>[[ eng.completion_rate ]]%</td>
+                                            <td>[[ eng.avg_duration_hours || '-' ]]</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <div v-if="engineerStats.length === 0" class="empty-table">暂无数据</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <div class="modal" v-if="showModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>[[ modalTitle ]]</h2>
+                    <button @click="closeModal" class="btn-close">×</button>
+                </div>
+                <div class="modal-body" v-html="modalContent"></div>
+            </div>
+        </div>
+
+        <div class="toast" :class="toastType" v-if="showToast">
+            [[ toastMessage ]]
+        </div>
+    </div>
+
+    <script src="/static/js/vue3.prod.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
