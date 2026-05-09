@@ -2,7 +2,7 @@ const { createApp } = Vue;
 
 const API_BASE = '/api';
 
-Vue.createApp({
+const app = createApp({
     delimiters: ['[[', ']]'],
     data() {
         return {
