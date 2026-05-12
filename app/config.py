@@ -5,8 +5,11 @@ from datetime import timedelta
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
 
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'mysql+pymysql://root:password@localhost:3306/video_monitor?charset=utf8mb4'
+    if os.environ.get('USE_SQLITE') or os.environ.get('TESTING'):
+        SQLALCHEMY_DATABASE_URI = 'sqlite:///video_monitor.db'
+    else:
+        SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
+            'mysql+pymysql://root:password@localhost:3306/video_monitor?charset=utf8mb4'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
